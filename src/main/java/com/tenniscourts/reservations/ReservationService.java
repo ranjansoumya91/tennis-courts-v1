@@ -12,9 +12,9 @@ import java.time.temporal.ChronoUnit;
 @AllArgsConstructor
 public class ReservationService {
 
-    private final ReservationRepository reservationRepository;
+    private ReservationRepository reservationRepository;
 
-    private final ReservationMapper reservationMapper;
+    private ReservationMapper reservationMapper;
 
     public ReservationDTO bookReservation(CreateReservationRequestDTO createReservationRequestDTO) {
         throw new UnsupportedOperationException();
@@ -71,23 +71,27 @@ public class ReservationService {
         return BigDecimal.ZERO;
     }
 
-    /*TODO: This method actually not fully working, find a way to fix the issue when it's throwing the error:
-            "Cannot reschedule to the same slot.*/
-    public ReservationDTO rescheduleReservation(Long previousReservationId, Long scheduleId) {
-        Reservation previousReservation = cancel(previousReservationId);
+    /*Fixed the error: "Cannot reschedule to the same slot.*/
+     public ReservationDTO rescheduleReservation(Long previousReservationId, Long scheduleId) {
 
-        if (scheduleId.equals(previousReservation.getSchedule().getId())) {
-            throw new IllegalArgumentException("Cannot reschedule to the same slot.");
-        }
+		Optional<Reservation> previousReservation = reservationRepository.findById(previousReservationId);
+		if (previousReservation.isPresent()) {
 
-        previousReservation.setReservationStatus(ReservationStatus.RESCHEDULED);
-        reservationRepository.save(previousReservation);
+			if (scheduleId.equals(previousReservation.get().getSchedule().getId())) {
+				throw new IllegalArgumentException("Cannot reschedule to the same slot.");
+			} else {
+				Reservation reservation = cancel(previousReservationId);
+				reservation.setReservationStatus(ReservationStatus.RESCHEDULED);
+				reservationRepository.save(reservation);
 
-        ReservationDTO newReservation = bookReservation(CreateReservationRequestDTO.builder()
-                .guestId(previousReservation.getGuest().getId())
-                .scheduleId(scheduleId)
-                .build());
-        newReservation.setPreviousReservation(reservationMapper.map(previousReservation));
-        return newReservation;
-    }
+				ReservationDTO newReservation = bookReservation(CreateReservationRequestDTO.builder()
+						.guestId(reservation.getGuest().getId()).scheduleId(scheduleId).build());
+				newReservation.setPreviousReservation(reservationMapper.map(reservation));
+				return newReservation;
+			}
+
+		}
+		return null;
+
+	}
 }
